@@ -1,0 +1,320 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1">
+
+<title>Full Screen Image Marker</title>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  font-family: Arial, sans-serif;
+  background: #111;
+}
+
+/* Full screen image */
+#imageArea {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #111;
+  touch-action: manipulation;
+}
+
+#mainImage {
+  max-width: 100%;
+  max-height: 100%;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+#mainImage[hidden] {
+  display: none;
+}
+
+/* Small colour toolbar at bottom */
+#toolbar {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 40px;
+  background: rgba(20, 20, 20, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 10;
+}
+
+.colour {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border-radius: 50%;
+  border: 2px solid white;
+  padding: 0;
+  cursor: pointer;
+}
+
+.colour.active {
+  outline: 2px solid white;
+  outline-offset: 3px;
+  transform: scale(1.12);
+}
+
+/* Small action buttons */
+.actions {
+  position: fixed;
+  top: 15px;
+  right: 15px;
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+
+.action {
+  background: rgba(20,20,20,0.8);
+  color: white;
+  border: 1px solid #777;
+  padding: 9px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+#upload {
+  position: fixed;
+  top: 15px;
+  left: 15px;
+  z-index: 10;
+  background: rgba(20,20,20,0.85);
+  color: white;
+  padding: 10px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+}
+
+input[type="file"] {
+  display: none;
+}
+
+/* Markers */
+.dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  border: 1.5px solid white;
+  box-shadow: 0 0 3px black;
+  pointer-events: none;
+}
+
+#hint {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: white;
+  background: rgba(0,0,0,0.55);
+  padding: 8px 12px;
+  border-radius: 15px;
+  font-size: 12px;
+  z-index: 5;
+  white-space: nowrap;
+}
+
+</style>
+</head>
+
+<body>
+
+<label id="upload">
+  Upload Image
+  <input type="file" id="fileInput" accept="image/*">
+</label>
+
+<div class="actions">
+  <button class="action" id="undo">Undo</button>
+  <button class="action" id="clear">Clear</button>
+  <button class="action" id="save">Save</button>
+</div>
+
+<div id="hint">Choose a colour, then tap the image</div>
+
+<div id="imageArea">
+  <img id="mainImage" hidden alt="Uploaded image">
+</div>
+
+<div id="toolbar"></div>
+
+<script>
+const colours = [
+  "red",
+  "blue",
+  "lime",
+  "yellow",
+  "orange",
+  "purple",
+  "white"
+];
+
+const area = document.getElementById("imageArea");
+const image = document.getElementById("mainImage");
+const toolbar = document.getElementById("toolbar");
+
+let selectedColour = "red";
+let dots = [];
+let imageURL = null;
+
+// Create small colour selection dots
+colours.forEach(colour => {
+  const button = document.createElement("button");
+
+  button.className = "colour";
+  button.style.background = colour;
+  button.title = colour;
+
+  if (colour === selectedColour) {
+    button.classList.add("active");
+  }
+
+  button.onclick = () => {
+    selectedColour = colour;
+
+    document.querySelectorAll(".colour").forEach(b =>
+      b.classList.remove("active")
+    );
+
+    button.classList.add("active");
+  };
+
+  toolbar.appendChild(button);
+});
+
+// Upload image
+document.getElementById("fileInput").onchange = event => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  if (imageURL) URL.revokeObjectURL(imageURL);
+
+  imageURL = URL.createObjectURL(file);
+  image.src = imageURL;
+  image.hidden = false;
+
+  dots.forEach(dot => dot.element.remove());
+  dots = [];
+
+  document.getElementById("hint").textContent =
+    "Tap anywhere to place a marker";
+};
+
+// Place marker accurately on displayed image
+
+area.addEventListener("pointerdown", event => {
+  if (image.hidden || event.target !== image) return;
+
+  const rect = image.getBoundingClientRect();
+
+  const x = (event.clientX - rect.left) / rect.width;
+  const y = (event.clientY - rect.top) / rect.height;
+
+  if (x < 0 || x > 1 || y < 0 || y > 1) return;
+
+  // Remove the previous dot of this colour
+  dots = dots.filter(dot => {
+    if (dot.colour === selectedColour) {
+      dot.element.remove();
+      return false;
+    }
+    return true;
+  });
+
+  // Create the new dot
+  const dot = document.createElement("div");
+  dot.className = "dot";
+  dot.style.background = selectedColour;
+  dot.style.left = (x * 100) + "%";
+  dot.style.top = (y * 100) + "%";
+
+  area.appendChild(dot);
+
+  dots.push({
+    element: dot,
+    x,
+    y,
+    colour: selectedColour
+  });
+});
+
+// Undo last marker
+document.getElementById("undo").onclick = () => {
+  const last = dots.pop();
+  if (last) last.element.remove();
+};
+
+// Clear all markers
+document.getElementById("clear").onclick = () => {
+  dots.forEach(dot => dot.element.remove());
+  dots = [];
+};
+
+// Save marked image
+document.getElementById("save").onclick = () => {
+  if (image.hidden) {
+    alert("Upload an image first");
+    return;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(image, 0, 0);
+
+  const rect = image.getBoundingClientRect();
+
+  const scaleX = image.naturalWidth / rect.width;
+  const scaleY = image.naturalHeight / rect.height;
+
+  dots.forEach(dot => {
+    const x = dot.x * canvas.width;
+    const y = dot.y * canvas.height;
+    const radius = 6 * Math.min(scaleX, scaleY);
+
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = dot.colour;
+    ctx.fill();
+
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 1.5 * Math.min(scaleX, scaleY);
+    ctx.stroke();
+  });
+
+  const link = document.createElement("a");
+  link.download = "marked-image.png";
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+};
+</script>
+
+</body>
+</html>
