@@ -214,9 +214,8 @@ document.getElementById("fileInput").onchange = event => {
 
   if (imageURL) URL.revokeObjectURL(imageURL);
 
-  imageURL = URL.createObjectURL(file);
-  image.src = imageURL;
-  image.hidden = false;
+image.src = "images/diagram1.jpg";
+image.hidden = false;
 
   dots.forEach(dot => dot.element.remove());
   dots = [];
